@@ -19,61 +19,108 @@ var FSHADER_SOURCE =
   '  gl_FragColor = vec4(vColor, 1.0);\n' +
   '}\n';
 
-function main() {
-  // Retrieve <canvas> element
-  var canvas = document.getElementById('webgl');
+var dragging = false;         // Dragging or not
+var lastX = 0, lastY = 0;     // Last position of the mouse
+var dX = 0, dY = 0;           // Difference in position
+var currentAngle = [0, 0];    // Current rotation angle ([x-axis, y-axis] degrees)
 
-  // Get the rendering context for WebGL
-  var gl = getWebGLContext(canvas);
-  if (!gl) {
-    console.log('Failed to get the rendering context for WebGL');
-    return;
-  }
 
-  // Initialize shaders
-  if (!initShaders(gl, VSHADER_SOURCE, FSHADER_SOURCE)) {
-    console.log('Failed to intialize shaders.');
-    return;
-  }
-  // Set the vertex information
-  var n = initVertexBuffers(gl);
-  if (n < 0) {
-    console.log('Failed to set the vertex information');
-    return;
-  }
-  var proj_matrix = new Matrix4();          
-  // Specify the viewing volume - define the projection matrix
-  proj_matrix.setPerspective(80, canvas.width/canvas.height, 1, 100); //you can change the parameters to get the best view
-  var mo_matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 ]; //model matrix - need to be updated accordingly when the sphere rotates
-  var view_matrix = [ 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 ];
-  view_matrix[14] = view_matrix[14]-2; // view matrix - move camera away from the object
+  function main() {
+    // Retrieve <canvas> element
+    var canvas = document.getElementById('webgl');
   
-  // Then, you need to pass the projection matrix, view matrix, and model matrix to the vertex shader.
-  // for example:    
-  _Pmatrix = gl.getUniformLocation(gl.program, "Pmatrix");
-  _Vmatrix = gl.getUniformLocation(gl.program, "Vmatrix");
-  _Mmatrix = gl.getUniformLocation(gl.program, "Mmatrix");
-  // Pass the projection matrix to _Pmatrix
-  gl.uniformMatrix4fv(_Pmatrix, false, proj_matrix.elements);
-  gl.uniformMatrix4fv(_Vmatrix, false, view_matrix);
-  gl.uniformMatrix4fv(_Mmatrix, false, mo_matrix);
+    // Get the rendering context for WebGL
+    var gl = getWebGLContext(canvas);
+    if (!gl) {
+      console.log('Failed to get the rendering context for WebGL');
+      return;
+    }
+  
+    // Initialize shaders
+    if (!initShaders(gl, VSHADER_SOURCE, FSHADER_SOURCE)) {
+      console.log('Failed to intialize shaders.');
+      return;
+    }
+  
+    // Set the vertex information
+    var n = initVertexBuffers(gl);
+    if (n < 0) {
+      console.log('Failed to set the vertex information');
+      return;
+    }
+  
+    // Create projection, view, and model matrices
+    var projMatrix = new Matrix4();
+    var viewMatrix = new Matrix4();
+    var modelMatrix = new Matrix4();
+  
+    // Specify the viewing volume and view matrix
+    projMatrix.setPerspective(30, canvas.width/canvas.height, 1, 100);
+    viewMatrix.setLookAt(0, 0, 5, 0, 0, -0, 0, 1, 0);
+  
+    // Get the location of the matrix uniforms
+    var u_ProjMatrix = gl.getUniformLocation(gl.program, 'Pmatrix');
+    var u_ViewMatrix = gl.getUniformLocation(gl.program, 'Vmatrix');
+    var u_ModelMatrix = gl.getUniformLocation(gl.program, 'Mmatrix');
+  
+    canvas.onmousedown = function(ev) {   // Mouse is pressed
+      var x = ev.clientX, y = ev.clientY;
+      // Start dragging if a mouse is in <canvas>
+      var rect = ev.target.getBoundingClientRect();
+      if (rect.left <= x && x < rect.right && rect.top <= y && y < rect.bottom) {
+        lastX = x; lastY = y;
+        dragging = true;
+      }
+    };
+    
+    canvas.onmouseup = function(ev) { dragging = false;  }; // Mouse is released
+    
+    canvas.onmousemove = function(ev) { // Mouse is moved
+      var x = ev.clientX, y = ev.clientY;
+      if (dragging) {
+        var factor = 100/canvas.height; // The rotation ratio
+        dX = factor * (x - lastX);
+        dY = factor * (y - lastY);
+        // Limit x-axis rotation angle to -90 to 90 degrees
+        currentAngle[0] = Math.max(Math.min(currentAngle[0] + dY, 90.0), -90.0);
+        currentAngle[1] = currentAngle[1] + dX;
+      }
+      lastX = x, lastY = y;
+    };
+    
 
-
-  // Set the clear color and enable the depth test
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  gl.enable(gl.DEPTH_TEST);
-  // Clear color and depth buffer
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-  // Draw the cube
-  gl.drawElements(gl.TRIANGLES, n, gl.UNSIGNED_SHORT, 0)
-}
+    // Set the clear color and enable the depth test
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.enable(gl.DEPTH_TEST);
+  
+    var tick = function() {
+      // Update the model matrix based on the current rotation angles
+      modelMatrix.setRotate(currentAngle[0], 1, 0, 0); // Rotation around x-axis
+      modelMatrix.rotate(currentAngle[1], 0, 1, 0);    // Rotation around y-axis
+  
+      // Pass the projection, view, and model matrices to the vertex shader
+      gl.uniformMatrix4fv(u_ProjMatrix, false, projMatrix.elements);
+      gl.uniformMatrix4fv(u_ViewMatrix, false, viewMatrix.elements);
+      gl.uniformMatrix4fv(u_ModelMatrix, false, modelMatrix.elements);
+  
+      // Clear color and depth buffer
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  
+      // Draw the sphere
+      gl.drawElements(gl.POINTS, n, gl.UNSIGNED_SHORT, 0);
+  
+      // Request the browser to call tick
+      requestAnimationFrame(tick, canvas);
+    };
+    tick();
+  }
+  
 function initVertexBuffers(gl) {
   var radius = 1.0;
   var grey = [0.6, 0.6, 0.6];
   var white = [1.0, 1.0, 1.0];
-  var sphereData = sphere(radius, 20, 20, grey); // latitudes and longitudes are both 20
-  //var meshData = sphere(radius, 20, 20, white)
+  var sphereData = sphere(radius, 30, 30, grey); // latitudes and longitudes are both 20
+  var meshData = sphere(radius, 20, 20, white);
   // Create a buffer for the vertices
   var vertexBuffer = gl.createBuffer();
   if (!vertexBuffer) {

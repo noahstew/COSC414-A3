@@ -107,7 +107,7 @@ var currentAngle = [0, 0];    // Current rotation angle ([x-axis, y-axis] degree
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   
       // Draw the sphere
-      gl.drawElements(gl.POINTS, n, gl.UNSIGNED_SHORT, 0);
+      gl.drawElements(gl.TRIANGLES, n, gl.UNSIGNED_SHORT, 0);
   
       // Request the browser to call tick
       requestAnimationFrame(tick, canvas);
@@ -119,8 +119,7 @@ function initVertexBuffers(gl) {
   var radius = 1.0;
   var grey = [0.6, 0.6, 0.6];
   var white = [1.0, 1.0, 1.0];
-  var sphereData = sphere(radius, 30, 30, grey); // latitudes and longitudes are both 20
-  var meshData = sphere(radius, 20, 20, white);
+  var sphereData = sphere(radius, 144, 144, grey, white); // latitudes and longitudes are both 20
   // Create a buffer for the vertices
   var vertexBuffer = gl.createBuffer();
   if (!vertexBuffer) {
@@ -168,7 +167,7 @@ function initVertexBuffers(gl) {
 
 
 
-function sphere(radius, latitudes, longitudes, color) {
+function sphere(radius, latitudes, longitudes, color, dots) {
   var vertices = [];
   for (var latNumber = 0; latNumber <= latitudes; latNumber++) {
     var theta = latNumber * Math.PI / latitudes;
@@ -183,13 +182,20 @@ function sphere(radius, latitudes, longitudes, color) {
       var x = cosPhi * sinTheta;
       var y = cosTheta;
       var z = sinPhi * sinTheta;
-      var r = color[0];
-      var g = color[1];
-      var b = color[2];
 
       vertices.push(radius * x);
       vertices.push(radius * y);
       vertices.push(radius * z);
+      if(latNumber % 12 == 0 && longNumber % 12 == 0) {
+        var r = dots[0];
+        var g = dots[1];
+        var b = dots[2];  
+      }
+      else {
+        var r = color[0];
+        var g = color[1];
+        var b = color[2]; 
+      }
       vertices.push(r);
       vertices.push(g);
       vertices.push(b);
